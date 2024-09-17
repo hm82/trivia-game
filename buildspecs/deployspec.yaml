@@ -1,0 +1,57 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - echo "Starting installation phase..."
+
+      # Install pyenv for Python version management
+      - curl https://pyenv.run | bash
+      - export PATH="$HOME/.pyenv/bin:$PATH"
+      - eval "$(pyenv init --path)"
+      - eval "$(pyenv init -)"
+      - eval "$(pyenv virtualenv-init -)"
+
+      # Install desired Python version using pyenv
+      - pyenv install 3.10.12  # Adjust the version as needed
+      - pyenv global 3.10.12
+
+      # Verify Python version
+      - python --version
+
+      # Install Node.js dependencies for the React frontend
+      - cd front-end-react && npm install
+
+      # Install Python dependencies for the serverless backend using pyenv's Python
+      - cd ../back-end-python/ && pip install -r ./gameactions/requirements.txt -t .
+
+      # Install Python testing dependencies 
+      - pip install -r ./tests/requirements.txt 
+
+      # Install SAM CLI for building and deploying Lambda
+      - pip install aws-sam-cli
+  
+  build:
+    commands:
+      - echo "Starting build phase..."
+      - cd ../
+
+      # Build the Python Lambda function using SAM
+      - sam build --use-container  # Ensure Docker is available for building the Lambda package
+      - sam deploy --no-fail-on-empty-changeset
+    
+      # Build the React frontend
+      - cd ../front-end-react && npm run build
+
+  post_build:
+    commands:
+      - echo "Starting post-build phase..."
+      
+      # Copy frontend build files to S3 bucket
+      - aws s3 sync --acl public-read ./front-end-react/build s3://hm-29182920-trivia-app-bucket --delete
+
+artifacts:
+  files:
+    - front-end-react/build/**/*  # Files generated for the React frontend build
+
+  discard-paths: yes
